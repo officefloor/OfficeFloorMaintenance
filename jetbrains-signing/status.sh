@@ -15,7 +15,12 @@ for name in "$SECRET_CERT" "$SECRET_KEY" "$SECRET_PASSWORD"; do
     echo "$name: set $updated, for: $repos"
 done
 for repo in "${REPOS[@]}"; do
-    own="$(gh secret list -R "$ORG/$repo" --json name --jq '.[].name' 2>/dev/null || true)"
+    # the temporary token has only admin:org, which cannot list a repository's own secrets, so
+    # this check uses gh's login
+    if ! own="$(env -u GH_TOKEN gh secret list -R "$ORG/$repo" --json name --jq '.[].name' 2>/dev/null)"; then
+        echo "note: could not list $repo's own secrets to check for overrides" >&2
+        continue
+    fi
     for name in "$SECRET_CERT" "$SECRET_KEY" "$SECRET_PASSWORD"; do
         if grep -qx "$name" <<<"$own"; then
             echo "warning: $repo sets its own $name, which overrides the organisation's" >&2

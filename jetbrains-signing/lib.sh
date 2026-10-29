@@ -30,42 +30,48 @@ require_files() {
     [ -f "$CERT" ] || die "no $CERT: restore it from the password manager (or set SIGNING_DIR)"
 }
 
-# Organisation secrets need more access than gh's default login has (admin:org). Either:
-#   - GH_TOKEN is already set: a short-lived token made for this run, used as it is; or
-#   - gh's login already has admin:org; or
-#   - ask: add admin:org to gh's login now and remove it again when the script ends, or
-#     paste a short-lived token for this run only.
-# DRY_RUN=1 skips the check, as nothing is sent.
+TOKEN_URL="https://github.com/settings/tokens/new?scopes=admin:org&description=OfficeFloorMaintenance%20(temporary)"
+TOKENS_URL="https://github.com/settings/tokens"
+
+open_browser() {
+    if command -v xdg-open >/dev/null; then
+        xdg-open "$1" >/dev/null 2>&1 &
+    elif command -v open >/dev/null; then
+        open "$1"
+    else
+        echo "Open: $1"
+    fi
+}
+
+# Organisation secrets need the admin:org scope. The only way these scripts get it is a
+# temporary token made for this run: gh's own login is never used for them, nor changed, and a
+# GH_TOKEN already in the environment is ignored. The token is held in this process only.
+# DRY_RUN=1 skips this, as nothing is sent.
 org_access() {
     [ -n "${DRY_RUN:-}" ] && return
-    if [ -n "${GH_TOKEN:-}" ]; then
-        echo "Using the token in GH_TOKEN for this run."
-        return
-    fi
-    if gh auth status -h github.com 2>&1 | grep -q "'admin:org'"; then
-        return
-    fi
+    unset GH_TOKEN GITHUB_TOKEN
     cat <<EOF
-Organisation secrets need the admin:org scope, which gh's login does not have.
-  1) add it to gh's login for this run, and remove it again at the end (opens the browser twice)
-  2) paste a short-lived token for this run only (gh's login is left alone): a classic token
-     with the admin:org scope and a 1-day expiry, from https://github.com/settings/tokens/new
-  q) stop
+This needs a temporary GitHub token with the admin:org scope, used for this run only.
+
+  1. Press Enter to open GitHub's "New personal access token (classic)" page.
+     The note and the admin:org scope are filled in already.
+  2. Expiration: choose "Custom" and pick tomorrow (or the shortest offered).
+  3. Check that admin:org is the only scope ticked, then "Generate token" at the bottom.
+  4. Copy the token (ghp_...) and paste it here.
+
+You must be an owner of the $ORG organisation.
 EOF
-    read -rp "Choice [1/2/q]: " choice
-    case "$choice" in
-        1)
-            gh auth refresh -h github.com -s admin:org
-            trap 'echo "Removing admin:org from gh again."; gh auth refresh -h github.com -r admin:org' EXIT
-            ;;
-        2)
-            read -rsp "Token: " GH_TOKEN; echo
-            [ -n "$GH_TOKEN" ] || die "no token given"
-            export GH_TOKEN
-            echo "Delete it at https://github.com/settings/tokens when done (it expires anyway)."
-            ;;
-        *) die "stopped" ;;
-    esac
+    read -rp "Press Enter to open the browser (or Ctrl+C to stop)... "
+    open_browser "$TOKEN_URL"
+    echo "(if no browser opened: $TOKEN_URL)"
+    read -rsp "Paste the token: " GH_TOKEN; echo
+    [ -n "$GH_TOKEN" ] || die "no token given"
+    export GH_TOKEN
+
+    scopes="$(gh api -i user 2>/dev/null | tr -d '\r' | sed -n 's/^[Xx]-[Oo][Aa]uth-[Ss]copes: //p')" \
+        || die "GitHub did not accept that token"
+    [[ ", $scopes," == *", admin:org,"* ]] || die "that token lacks admin:org (it has: ${scopes:-none})"
+    trap 'echo; echo "Done with the token: delete it now at $TOKENS_URL (it also expires by itself)."' EXIT
 }
 
 # Runs a command, or with DRY_RUN=1 only prints it

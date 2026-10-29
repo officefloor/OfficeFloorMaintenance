@@ -28,18 +28,21 @@ account and is set per repository.
 
 ### Access
 
-Organisation secrets need GitHub's `admin:org` scope, which `gh`'s usual login does not have.
-The scripts that touch them (`upload.sh`, `add-repo.sh`, `status.sh`) ask how to get it for
-that one run:
+Organisation secrets need GitHub's `admin:org` scope. The scripts that touch them (`upload.sh`,
+`add-repo.sh`, `status.sh`) get it in one way only: a temporary token made for that run.
+`gh`'s own login is never given the scope, and a `GH_TOKEN` already set is ignored.
 
-1. **Add the scope to `gh` for the run.** `gh auth refresh` opens the browser to grant it, and
-   when the script ends it is removed again the same way.
-2. **A short-lived token for the run.** A classic token with only `admin:org` and a 1-day
-   expiry, from https://github.com/settings/tokens/new, pasted when asked (or given as
-   `GH_TOKEN=… ./upload.sh`). `gh`'s own login is left untouched.
+Each run walks you through it:
 
-Run them in your own terminal (they prompt for passwords and may open the browser). You must
-be an owner of the organisation.
+1. Press Enter, and GitHub's *New personal access token (classic)* page opens with the note
+   and the `admin:org` scope filled in.
+2. Set *Expiration* to *Custom*, tomorrow, check `admin:org` is the only scope, and generate.
+3. Paste the token at the prompt (it is not shown). The script checks it carries `admin:org`,
+   uses it for that run only, and when it ends reminds you to delete it at
+   https://github.com/settings/tokens.
+
+Run them in your own terminal: they prompt for passwords and open the browser. You must be an
+owner of the organisation.
 
 ### First time
 
