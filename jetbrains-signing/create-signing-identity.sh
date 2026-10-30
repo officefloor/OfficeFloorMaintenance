@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Makes the OfficeFloor signing identity: an encrypted RSA key and a self-signed certificate.
-# Run once. openssl asks for the key's new password (twice), then for it again to sign the
-# certificate. Refuses to overwrite an existing key.
+# Run once, or to replace the identity (README). openssl asks for the key's new password
+# (twice), then for it again to sign the certificate. Refuses to overwrite an existing key.
 here="$(cd "$(dirname "$0")" && pwd)"
 source "$here/config.sh"
 source "$here/lib.sh"
 
-[ -e "$KEY" ] && die "$KEY already exists: this identity is already made (see renew-signing-certificate.sh to extend it)"
+[ -e "$KEY" ] && die "$KEY already exists: to replace the identity, set SIGNING_DIR to an empty directory"
 umask 077
 mkdir -p "$DIR"
 

@@ -11,7 +11,7 @@ REPOS=(SinewSlim OfficeFloor-IntelliJ-Plugin)
 
 # The certificate's subject and lifetime
 SUBJECT="/CN=OfficeFloor/O=OfficeFloor/OU=IntelliJ Plugins"
-DAYS=3650
+DAYS=9125    # 25 years: replacing the identity, not renewing it, is the plan (README)
 
 # Where the key and certificate are kept while working with them (SIGNING_DIR overrides).
 # Keep the originals in the password manager, not here.

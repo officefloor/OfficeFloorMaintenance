@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Puts the key, its password and the certificate in the organisation's secrets, available to
-# the repositories in config.sh. Re-run after create-signing-identity.sh or
-# renew-signing-certificate.sh, or to reset the repository list to config.sh's.
+# the repositories in config.sh. Re-run after create-signing-identity.sh, or to reset the
+# repository list to config.sh's.
 # DRY_RUN=1 ./upload-signing-secrets.sh shows what it would do.
 here="$(cd "$(dirname "$0")" && pwd)"
 source "$here/config.sh"

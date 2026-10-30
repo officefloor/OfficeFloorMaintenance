@@ -15,5 +15,5 @@ cert_pub="$(openssl x509 -in "$CERT" -noout -pubkey)"
 echo "The key opens and the certificate is its own."
 openssl x509 -in "$CERT" -noout -subject -enddate -fingerprint -sha256
 if ! openssl x509 -in "$CERT" -noout -checkend $((90 * 24 * 3600)) >/dev/null; then
-    echo "warning: the certificate expires within 90 days: run ./renew-signing-certificate.sh" >&2
+    echo "warning: the certificate expires within 90 days: replace the identity (README, Updating)" >&2
 fi

@@ -19,14 +19,29 @@ each plugin repository's release workflow reads the same three:
 The repositories that get them are listed in [`jetbrains-signing/config.sh`](jetbrains-signing/config.sh).
 A repository must not also set these itself: a repository secret overrides the organisation's.
 
-Signing is optional for the JetBrains Marketplace (it countersigns every approved upload
-itself), but once a plugin has been published signed, later versions must be signed by the
-same identity. So make it once, keep it, and renew rather than replace it.
-
 `PUBLISH_TOKEN`, the Marketplace upload token, is not part of this: it belongs to a JetBrains
 account and is set per repository.
 
-### Access
+### How the signature is checked
+
+From JetBrains' [plugin signing](https://plugins.jetbrains.com/docs/intellij/plugin-signing.html)
+page:
+
+1. The release workflow signs the plugin with the private key and uploads it with the
+   certificate. The Marketplace verifies the signature, so the plugin cannot have been altered
+   between the build and the upload.
+2. The Marketplace then countersigns the plugin with JetBrains' own key. Installing IDEs check
+   that countersignature against the JetBrains CA they ship with, and warn about a plugin that
+   is unsigned or whose certificate is revoked. They never need OfficeFloor's certificate.
+3. JetBrains plans for authors to upload their public key to their Marketplace profile, after
+   which an upload is accepted only if its key is in the uploading account's profile. The page
+   says this is "not available yet". Until it is, a self-signed certificate is not tied to any
+   account: anyone with the upload token could sign with a key of their own.
+
+So the identity is replaceable: if the key is lost, or the certificate expires, create a new
+identity and upload it. Installed plugins and their updates carry on unaffected, since IDEs
+check JetBrains' countersignature. Once profile keys exist, the new certificate also has to be
+registered there (and, for a leaked key, the old one removed).
 
 ### The scripts
 
@@ -34,15 +49,14 @@ In [`jetbrains-signing/`](jetbrains-signing):
 
 | Script | What it does |
 |---|---|
-| `create-signing-identity.sh` | makes the key (asking for its new password) and the certificate, once |
+| `create-signing-identity.sh` | makes the key (asking for its new password) and the certificate |
 | `check-signing-files.sh` | checks the password opens the key, the certificate is the key's, and when it expires |
 | `upload-signing-secrets.sh` | sets the three organisation secrets for the repositories in `config.sh` |
 | `share-signing-with-repository.sh <repo>` | gives one more repository the secrets already set |
 | `show-signing-secrets.sh` | when each secret was set, which repositories read it, and any that override it |
-| `renew-signing-certificate.sh` | extends the certificate on the same key, before it expires |
 
-`config.sh` holds the organisation, the repositories and the certificate's subject; `lib.sh`
-is shared by the scripts.
+`config.sh` holds the organisation, the repositories and the certificate's subject and
+lifetime (25 years); `lib.sh` is shared by the scripts.
 
 ### Access
 
@@ -69,10 +83,13 @@ owner of the organisation.
 cd jetbrains-signing
 # asks for a new password, makes ~/officefloor-signing/{private_encrypted.pem,chain.crt}
 ./create-signing-identity.sh
-# now save both files and the password in the password manager
+# save both files and the password in the password manager
 ./upload-signing-secrets.sh
 rm -rf ~/officefloor-signing
 ```
+
+When the Marketplace offers uploading a public key to the profile, register `chain.crt` there
+with the account that holds the `PUBLISH_TOKEN`s.
 
 ### Updating
 
@@ -84,9 +101,9 @@ the password manager first, where a step needs them.
 | give a new plugin repository the secrets | add it to `REPOS` in `config.sh`, commit, then `./share-signing-with-repository.sh <repo>` | no |
 | see what is set, and for whom | `./show-signing-secrets.sh` | no |
 | check the files and the password | `./check-signing-files.sh` (warns 90 days before expiry) | yes |
-| extend the certificate before it expires (10 years) | `./renew-signing-certificate.sh`, save the new `chain.crt`, `./upload-signing-secrets.sh` | yes |
 | reset the repository list to `config.sh`'s | `./upload-signing-secrets.sh` | yes |
-| replace a leaked key | `./create-signing-identity.sh` into an empty `SIGNING_DIR`, `./upload-signing-secrets.sh`; check JetBrains' plugin-signing documentation on changing a plugin's certificate first | yes |
+| replace the identity: key lost, certificate expiring | `./create-signing-identity.sh` into an empty `SIGNING_DIR`, `./upload-signing-secrets.sh` (and, once profile keys exist, register the new certificate) | no (makes new ones) |
+| replace a leaked key | as above; also rotate the `PUBLISH_TOKEN`s, and, once profile keys exist, remove the old certificate from the profile | no (makes new ones) |
 
 `DRY_RUN=1 ./upload-signing-secrets.sh` shows what would be set without sending anything.
 `SIGNING_PASSWORD` in the environment answers the password prompts, for scripted use.
