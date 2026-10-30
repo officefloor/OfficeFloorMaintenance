@@ -1,26 +1,48 @@
 # OfficeFloor Maintenance
 
-Scripts for looking after what the OfficeFloor organisation shares across its repositories.
-Nothing secret is kept here: the scripts make and upload secrets, and the originals live in the
-password manager.
+Scripts for setting up what the OfficeFloor organisation shares across its repositories.
+Nothing secret is kept here: the scripts put secrets into GitHub.
 
-## JetBrains plugin signing
+## Publishing IntelliJ plugins to the JetBrains Marketplace
 
-Every OfficeFloor IntelliJ plugin is signed with one OfficeFloor identity: an encrypted RSA key
-and a self-signed certificate (`CN=OfficeFloor`). They are held as **organisation** secrets, so
-each plugin repository's release workflow reads the same three:
+```bash
+./setup-jetbrains-publishing.sh
+```
+
+Run it in your own terminal (it asks for passwords and tokens, and opens the browser). It sets
+the organisation secrets that the plugin repositories' release workflows read, for the
+repositories listed in [`jetbrains-plugin-repositories.txt`](jetbrains-plugin-repositories.txt):
 
 | Secret | What it is |
 |---|---|
-| `CERTIFICATE_CHAIN` | the certificate, `chain.crt` |
-| `PRIVATE_KEY` | the encrypted key, `private_encrypted.pem` |
+| `CERTIFICATE_CHAIN` | the OfficeFloor certificate (self-signed, `CN=OfficeFloor`, 25 years) |
+| `PRIVATE_KEY` | its encrypted RSA key |
 | `PRIVATE_KEY_PASSWORD` | the key's password |
+| `PUBLISH_TOKEN` | a JetBrains Marketplace token, which uploads the plugins |
 
-The repositories that get them are listed in [`jetbrains-signing/.config.sh`](jetbrains-signing/.config.sh).
-A repository must not also set these itself: a repository secret overrides the organisation's.
+It asks three questions, each of which can be answered no:
 
-`PUBLISH_TOKEN`, the Marketplace upload token, is not part of this: it belongs to a JetBrains
-account and is set per repository.
+1. **Set up the signing keys?** It asks for a password, makes the key and certificate, and sets
+   the first three secrets. It writes the certificate, which is public, to
+   `jetbrains-signing-certificate.crt` here, to commit. It can keep a copy of the private key
+   for a password manager; otherwise the key is deleted.
+2. **Set up `PUBLISH_TOKEN`?** It opens the Marketplace's token page; you generate a token
+   with the account that publishes the plugins, and paste it.
+3. **Update the repositories with access?** Makes the repositories that may read the secrets
+   exactly those in the list (for any secret not just set, which already has the list).
+
+A secret set in step 1 or 2 is readable by the listed repositories only.
+
+**Adding a plugin repository later:** add its name to `jetbrains-plugin-repositories.txt`,
+commit, run the script, and answer no, no, yes. Removing a name works the same way.
+
+Changing secrets needs GitHub's `admin:org` scope, which `gh`'s login does not have and is not
+given. The first time the script is to change something, it opens GitHub's new-token page
+with `admin:org` filled in: set the expiry to tomorrow, generate, and paste the token. It is
+used for that run only (all three steps share it), and at the end the script reminds you to
+delete it. You must be an owner of the organisation.
+
+A repository must not set its own secret of the same name: it would override the organisation's.
 
 ### How the signature is checked
 
@@ -35,79 +57,16 @@ page:
    is unsigned or whose certificate is revoked. They never need OfficeFloor's certificate.
 3. JetBrains plans for authors to upload their public key to their Marketplace profile, after
    which an upload is accepted only if its key is in the uploading account's profile. The page
-   says this is "not available yet". Until it is, a self-signed certificate is not tied to any
-   account: anyone with the upload token could sign with a key of their own.
+   says this is "not available yet", and there is no API for it. When it is offered, add
+   `jetbrains-signing-certificate.crt` to the profile of the account that publishes.
 
-So the identity is replaceable: if the key is lost, or the certificate expires, create a new
-identity and upload it. Installed plugins and their updates carry on unaffected, since IDEs
-check JetBrains' countersignature. Once profile keys exist, the new certificate also has to be
-registered there (and, for a leaked key, the old one removed).
+So the identity is replaceable: if the key is lost or leaked, or the certificate nears its
+expiry, run the signing step again (it makes a new identity and replaces the secrets); for a
+leak, also replace `PUBLISH_TOKEN`. Installed plugins and their updates carry on unaffected,
+since IDEs check JetBrains' countersignature.
 
-### The scripts
-
-In [`jetbrains-signing/`](jetbrains-signing):
-
-| Script | What it does |
-|---|---|
-| `create-signing-identity.sh` | makes the key (asking for its new password) and the certificate |
-| `check-signing-files.sh` | checks the password opens the key, the certificate is the key's, and when it expires |
-| `upload-signing-secrets.sh` | sets the three organisation secrets for the repositories in `.config.sh` |
-| `share-signing-with-repository.sh <repo>` | gives one more repository the secrets already set |
-| `show-signing-secrets.sh` | when each secret was set, which repositories read it, and any that override it |
-
-`.config.sh` holds the organisation, the repositories and the certificate's subject and
-lifetime (25 years); `.lib.sh` is shared by the scripts. Both start with a dot, so `ls` lists
-only the scripts you run (`ls -a` shows them).
-
-### Access
-
-Organisation secrets need GitHub's `admin:org` scope. The scripts that touch them
-(`upload-signing-secrets.sh`, `share-signing-with-repository.sh`, `show-signing-secrets.sh`)
-get it in one way only: a temporary token made for that run. `gh`'s own login is never given
-the scope, and a `GH_TOKEN` already set is ignored.
-
-Each run walks you through it:
-
-1. Press Enter, and GitHub's *New personal access token (classic)* page opens with the note
-   and the `admin:org` scope filled in.
-2. Set *Expiration* to *Custom*, tomorrow, check `admin:org` is the only scope, and generate.
-3. Paste the token at the prompt (it is not shown). The script checks it carries `admin:org`,
-   uses it for that run only, and when it ends reminds you to delete it at
-   https://github.com/settings/tokens.
-
-Run them in your own terminal: they prompt for passwords and open the browser. You must be an
-owner of the organisation.
-
-### First time
-
-```bash
-cd jetbrains-signing
-# asks for a new password, makes ~/officefloor-signing/{private_encrypted.pem,chain.crt}
-./create-signing-identity.sh
-# save both files and the password in the password manager
-./upload-signing-secrets.sh
-rm -rf ~/officefloor-signing
-```
-
-When the Marketplace offers uploading a public key to the profile, register `chain.crt` there
-with the account that holds the `PUBLISH_TOKEN`s.
-
-### Updating
-
-The scripts work on `~/officefloor-signing` (or `SIGNING_DIR`): restore the two files there from
-the password manager first, where a step needs them.
-
-| To | Do | Needs the files |
-|---|---|---|
-| give a new plugin repository the secrets | add it to `REPOS` in `.config.sh`, commit, then `./share-signing-with-repository.sh <repo>` | no |
-| see what is set, and for whom | `./show-signing-secrets.sh` | no |
-| check the files and the password | `./check-signing-files.sh` (warns 90 days before expiry) | yes |
-| reset the repository list to `.config.sh`'s | `./upload-signing-secrets.sh` | yes |
-| replace the identity: key lost, certificate expiring | `./create-signing-identity.sh` into an empty `SIGNING_DIR`, `./upload-signing-secrets.sh` (and, once profile keys exist, register the new certificate) | no (makes new ones) |
-| replace a leaked key | as above; also rotate the `PUBLISH_TOKEN`s, and, once profile keys exist, remove the old certificate from the profile | no (makes new ones) |
-
-`DRY_RUN=1 ./upload-signing-secrets.sh` shows what would be set without sending anything.
-`SIGNING_PASSWORD` in the environment answers the password prompts, for scripted use.
+`DRY_RUN=1 ./setup-jetbrains-publishing.sh` makes a throwaway key and shows what would be set,
+sending nothing.
 
 ## License
 

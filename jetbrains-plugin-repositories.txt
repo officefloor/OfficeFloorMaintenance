@@ -1,0 +1,8 @@
+# The OfficeFloor repositories that publish IntelliJ plugins to the JetBrains Marketplace: each
+# may read the organisation secrets PUBLISH_TOKEN, CERTIFICATE_CHAIN, PRIVATE_KEY and
+# PRIVATE_KEY_PASSWORD. One repository name per line.
+#
+# To give a new plugin repository access: add it here, commit, and run
+# ./setup-jetbrains-publishing.sh, answering yes to updating the repositories with access.
+SinewSlim
+OfficeFloor-IntelliJ-Plugin
