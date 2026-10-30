@@ -16,7 +16,7 @@ each plugin repository's release workflow reads the same three:
 | `PRIVATE_KEY` | the encrypted key, `private_encrypted.pem` |
 | `PRIVATE_KEY_PASSWORD` | the key's password |
 
-The repositories that get them are listed in [`jetbrains-signing/config.sh`](jetbrains-signing/config.sh).
+The repositories that get them are listed in [`jetbrains-signing/.config.sh`](jetbrains-signing/.config.sh).
 A repository must not also set these itself: a repository secret overrides the organisation's.
 
 `PUBLISH_TOKEN`, the Marketplace upload token, is not part of this: it belongs to a JetBrains
@@ -51,12 +51,13 @@ In [`jetbrains-signing/`](jetbrains-signing):
 |---|---|
 | `create-signing-identity.sh` | makes the key (asking for its new password) and the certificate |
 | `check-signing-files.sh` | checks the password opens the key, the certificate is the key's, and when it expires |
-| `upload-signing-secrets.sh` | sets the three organisation secrets for the repositories in `config.sh` |
+| `upload-signing-secrets.sh` | sets the three organisation secrets for the repositories in `.config.sh` |
 | `share-signing-with-repository.sh <repo>` | gives one more repository the secrets already set |
 | `show-signing-secrets.sh` | when each secret was set, which repositories read it, and any that override it |
 
-`config.sh` holds the organisation, the repositories and the certificate's subject and
-lifetime (25 years); `lib.sh` is shared by the scripts.
+`.config.sh` holds the organisation, the repositories and the certificate's subject and
+lifetime (25 years); `.lib.sh` is shared by the scripts. Both start with a dot, so `ls` lists
+only the scripts you run (`ls -a` shows them).
 
 ### Access
 
@@ -98,10 +99,10 @@ the password manager first, where a step needs them.
 
 | To | Do | Needs the files |
 |---|---|---|
-| give a new plugin repository the secrets | add it to `REPOS` in `config.sh`, commit, then `./share-signing-with-repository.sh <repo>` | no |
+| give a new plugin repository the secrets | add it to `REPOS` in `.config.sh`, commit, then `./share-signing-with-repository.sh <repo>` | no |
 | see what is set, and for whom | `./show-signing-secrets.sh` | no |
 | check the files and the password | `./check-signing-files.sh` (warns 90 days before expiry) | yes |
-| reset the repository list to `config.sh`'s | `./upload-signing-secrets.sh` | yes |
+| reset the repository list to `.config.sh`'s | `./upload-signing-secrets.sh` | yes |
 | replace the identity: key lost, certificate expiring | `./create-signing-identity.sh` into an empty `SIGNING_DIR`, `./upload-signing-secrets.sh` (and, once profile keys exist, register the new certificate) | no (makes new ones) |
 | replace a leaked key | as above; also rotate the `PUBLISH_TOKEN`s, and, once profile keys exist, remove the old certificate from the profile | no (makes new ones) |
 

@@ -2,8 +2,8 @@
 # Shows the organisation's signing secrets: when each was last set, and which repositories
 # can read it; and warns of any repository that overrides one with its own.
 here="$(cd "$(dirname "$0")" && pwd)"
-source "$here/config.sh"
-source "$here/lib.sh"
+source "$here/.config.sh"
+source "$here/.lib.sh"
 
 org_access
 for name in "$SECRET_CERT" "$SECRET_KEY" "$SECRET_PASSWORD"; do

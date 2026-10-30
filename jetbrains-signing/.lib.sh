@@ -1,4 +1,4 @@
-# Helpers shared by the scripts. Sourced, after config.sh.
+# Helpers shared by the scripts. Sourced, after .config.sh.
 
 set -euo pipefail
 

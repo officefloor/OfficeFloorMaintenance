@@ -2,8 +2,8 @@
 # Checks the key and certificate: the password opens the key, the certificate is the key's,
 # and how long the certificate has left.
 here="$(cd "$(dirname "$0")" && pwd)"
-source "$here/config.sh"
-source "$here/lib.sh"
+source "$here/.config.sh"
+source "$here/.lib.sh"
 
 require_files
 read_password
