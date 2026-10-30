@@ -28,9 +28,28 @@ account and is set per repository.
 
 ### Access
 
-Organisation secrets need GitHub's `admin:org` scope. The scripts that touch them (`upload.sh`,
-`add-repo.sh`, `status.sh`) get it in one way only: a temporary token made for that run.
-`gh`'s own login is never given the scope, and a `GH_TOKEN` already set is ignored.
+### The scripts
+
+In [`jetbrains-signing/`](jetbrains-signing):
+
+| Script | What it does |
+|---|---|
+| `create-signing-identity.sh` | makes the key (asking for its new password) and the certificate, once |
+| `check-signing-files.sh` | checks the password opens the key, the certificate is the key's, and when it expires |
+| `upload-signing-secrets.sh` | sets the three organisation secrets for the repositories in `config.sh` |
+| `share-signing-with-repository.sh <repo>` | gives one more repository the secrets already set |
+| `show-signing-secrets.sh` | when each secret was set, which repositories read it, and any that override it |
+| `renew-signing-certificate.sh` | extends the certificate on the same key, before it expires |
+
+`config.sh` holds the organisation, the repositories and the certificate's subject; `lib.sh`
+is shared by the scripts.
+
+### Access
+
+Organisation secrets need GitHub's `admin:org` scope. The scripts that touch them
+(`upload-signing-secrets.sh`, `share-signing-with-repository.sh`, `show-signing-secrets.sh`)
+get it in one way only: a temporary token made for that run. `gh`'s own login is never given
+the scope, and a `GH_TOKEN` already set is ignored.
 
 Each run walks you through it:
 
@@ -48,9 +67,10 @@ owner of the organisation.
 
 ```bash
 cd jetbrains-signing
-./generate.sh      # asks for a new password, makes ~/officefloor-signing/{private_encrypted.pem,chain.crt}
-                   # save both files and the password in the password manager
-./upload.sh        # checks them, then sets the three organisation secrets
+# asks for a new password, makes ~/officefloor-signing/{private_encrypted.pem,chain.crt}
+./create-signing-identity.sh
+# now save both files and the password in the password manager
+./upload-signing-secrets.sh
 rm -rf ~/officefloor-signing
 ```
 
@@ -61,14 +81,14 @@ the password manager first, where a step needs them.
 
 | To | Do | Needs the files |
 |---|---|---|
-| give a new plugin repository the secrets | add it to `REPOS` in `config.sh`, commit, then `./add-repo.sh <repo>` | no |
-| see what is set, and for whom | `./status.sh` | no |
-| check the files and the password | `./check.sh` (warns 90 days before expiry) | yes |
-| extend the certificate before it expires (10 years) | `./renew.sh`, save the new `chain.crt`, `./upload.sh` | yes |
-| reset the repository list to `config.sh`'s | `./upload.sh` | yes |
-| replace a leaked key | `generate.sh` into an empty `SIGNING_DIR`, `./upload.sh`; check JetBrains' plugin-signing documentation on changing a plugin's certificate first | yes |
+| give a new plugin repository the secrets | add it to `REPOS` in `config.sh`, commit, then `./share-signing-with-repository.sh <repo>` | no |
+| see what is set, and for whom | `./show-signing-secrets.sh` | no |
+| check the files and the password | `./check-signing-files.sh` (warns 90 days before expiry) | yes |
+| extend the certificate before it expires (10 years) | `./renew-signing-certificate.sh`, save the new `chain.crt`, `./upload-signing-secrets.sh` | yes |
+| reset the repository list to `config.sh`'s | `./upload-signing-secrets.sh` | yes |
+| replace a leaked key | `./create-signing-identity.sh` into an empty `SIGNING_DIR`, `./upload-signing-secrets.sh`; check JetBrains' plugin-signing documentation on changing a plugin's certificate first | yes |
 
-`DRY_RUN=1 ./upload.sh` shows what would be set without sending anything.
+`DRY_RUN=1 ./upload-signing-secrets.sh` shows what would be set without sending anything.
 `SIGNING_PASSWORD` in the environment answers the password prompts, for scripted use.
 
 ## License

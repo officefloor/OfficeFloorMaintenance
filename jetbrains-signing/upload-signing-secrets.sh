@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 # Puts the key, its password and the certificate in the organisation's secrets, available to
-# the repositories in config.sh. Re-run after generate.sh or renew.sh, or to reset the
-# repository list to config.sh's. DRY_RUN=1 ./upload.sh shows what it would do.
+# the repositories in config.sh. Re-run after create-signing-identity.sh or
+# renew-signing-certificate.sh, or to reset the
+# repository list to config.sh's. DRY_RUN=1 ./upload-signing-secrets.sh shows what it would do.
 here="$(cd "$(dirname "$0")" && pwd)"
 source "$here/config.sh"
 source "$here/lib.sh"
 
 require_files
 read_password
-"$here/check.sh"
+"$here/check-signing-files.sh"
 org_access
 
 repos="$(repo_list)"
@@ -21,7 +22,7 @@ else
     printf '%s' "$SIGNING_PASSWORD" | gh secret set "$SECRET_PASSWORD" --org "$ORG" --visibility selected --repos "$repos"
 fi
 
-[ -n "${DRY_RUN:-}" ] || "$here/status.sh"
+[ -n "${DRY_RUN:-}" ] || "$here/show-signing-secrets.sh"
 cat <<EOF
 
 Done. A repository must not set its own $SECRET_CERT, $SECRET_KEY or $SECRET_PASSWORD: a

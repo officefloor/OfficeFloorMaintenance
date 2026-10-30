@@ -6,7 +6,7 @@ here="$(cd "$(dirname "$0")" && pwd)"
 source "$here/config.sh"
 source "$here/lib.sh"
 
-[ -e "$KEY" ] && die "$KEY already exists: this identity is already made (see renew.sh to extend it)"
+[ -e "$KEY" ] && die "$KEY already exists: this identity is already made (see renew-signing-certificate.sh to extend it)"
 umask 077
 mkdir -p "$DIR"
 
@@ -18,12 +18,12 @@ else
 fi
 with_password openssl req -key "$KEY" -new -x509 -days "$DAYS" -subj "$SUBJECT" -out "$CERT"
 
-"$here/check.sh"
+"$here/check-signing-files.sh"
 cat <<EOF
 
 Made $KEY and $CERT.
 Now:
   1. Save both files and the password in the password manager (GitHub never shows a secret again).
-  2. ./upload.sh to put them in the $ORG organisation's secrets.
+  2. ./upload-signing-secrets.sh to put them in the $ORG organisation's secrets.
   3. Delete $DIR.
 EOF

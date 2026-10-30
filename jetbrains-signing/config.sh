@@ -5,7 +5,8 @@
 ORG=officefloor
 
 # The repositories whose release workflows sign a plugin: each is given the three secrets.
-# Add a new plugin repository here, then run ./add-repo.sh <name> (or ./upload.sh).
+# Add a new plugin repository here, then run ./share-signing-with-repository.sh <name>
+# (or ./upload-signing-secrets.sh).
 REPOS=(SinewSlim OfficeFloor-IntelliJ-Plugin)
 
 # The certificate's subject and lifetime
