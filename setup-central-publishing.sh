@@ -77,8 +77,9 @@ github_access() {
     [ -n "${DRY_RUN:-}" ] && { echo "(dry run: no GitHub token needed)"; GH_TOKEN=dry-run; return; }
     cat <<EOF
 
-Changing organisation secrets needs a temporary GitHub token with the admin:org scope, used for
-this run only.
+Now a GITHUB token, separate from the Central token: it lets this script write the officefloor
+organisation's secrets, and nothing else. A temporary one with the admin:org scope, for this
+run only.
 
   1. Press Enter to open GitHub's "New personal access token (classic)" page.
      The note and the admin:org scope are filled in already.
@@ -90,7 +91,7 @@ You must be an owner of the $ORG organisation.
 EOF
     read -rp "Press Enter to open the browser (or Ctrl+C to stop)... "
     open_browser "https://github.com/settings/tokens/new?scopes=admin:org&description=OfficeFloor%20Central%20setup%20(temporary)"
-    read -rsp "Paste the GitHub token: " GH_TOKEN; echo
+    read -rsp "Paste the GitHub token (ghp_..., hidden): " GH_TOKEN; echo
     [ -n "$GH_TOKEN" ] || die "no token given"
     export GH_TOKEN
     local scopes
@@ -120,11 +121,11 @@ libraries. Generate one at https://central.sonatype.com/account ("Generate User 
 in as the account that owns the net.officefloor namespace; it shows a username and a password.
 EOF
     ask "Set the Central token?" || return 0
-    github_access
     local user pass
-    read -rp "Token username: " user
-    read -rsp "Token password: " pass; echo
-    [ -n "$user" ] && [ -n "$pass" ] || die "the token needs both its username and its password"
+    read -rp "Central token username: " user
+    read -rsp "Central token password (hidden): " pass; echo
+    [ -n "$user" ] && [ -n "$pass" ] || die "the Central token needs both its username and its password"
+    github_access
     set_secret SONATYPE_USERNAME < <(printf '%s' "$user")  # not a pipe: set_secret records what it set
     set_secret SONATYPE_PASSWORD < <(printf '%s' "$pass")  # not a pipe: set_secret records what it set
 }
@@ -151,9 +152,8 @@ EOF
 }
 
 existing_signing_key() {
-    github_access
     local id pass key
-    read -rp "Signing key id: " id
+    read -rp "Signing key id (gpg --list-secret-keys --keyid-format long): " id
     [ -n "$id" ] || die "no key id given"
     if [ -n "${DRY_RUN:-}" ]; then
         key="(dry run: the armoured key of $id)"
@@ -161,7 +161,8 @@ existing_signing_key() {
         key="$(gpg --armor --export-secret-keys "$id")" || die "gpg could not export $id"
         [ -n "$key" ] || die "no secret key $id in the keyring"
     fi
-    read -rsp "Its passphrase: " pass; echo
+    read -rsp "The key's passphrase (hidden): " pass; echo
+    github_access
     set_secret GPG_PRIVATE_KEY < <(printf '%s' "$key")  # not a pipe: set_secret records what it set
     set_secret GPG_PASSPHRASE < <(printf '%s' "$pass")  # not a pipe: set_secret records what it set
     if [ -n "${DRY_RUN:-}" ]; then
@@ -181,8 +182,8 @@ generate_signing_key() {
     name="${name:-OfficeFloor}"
     read -rp "Email on the key (keys.openpgp.org emails it to confirm): " email
     [[ "$email" == *@*.* ]] || die "give the email address the key is for"
-    read -rsp "Choose a passphrase for the key: " pass; echo
-    read -rsp "Again: " confirm; echo
+    read -rsp "Choose a passphrase for the new key (hidden): " pass; echo
+    read -rsp "The passphrase again: " confirm; echo
     [ "$pass" = "$confirm" ] || die "the passphrases differ"
     [ ${#pass} -ge 8 ] || die "use at least 8 characters"
 
