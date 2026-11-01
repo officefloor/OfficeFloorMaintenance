@@ -6,3 +6,4 @@
 # ./setup-jetbrains-publishing.sh, answering yes to updating the repositories with access.
 SinewSlim
 OfficeFloor-IntelliJ-Plugin
+OfficeFloorSlim
