@@ -18,6 +18,15 @@ Central, for the repositories listed in
 | `SONATYPE_USERNAME`, `SONATYPE_PASSWORD` | a Central Portal user token, for the account that owns the `net.officefloor` namespace |
 | `GPG_PRIVATE_KEY`, `GPG_PASSPHRASE` | the signing key, armoured, and its passphrase |
 
+**The signing key** is either an existing one from your GPG keyring (OfficeFloor's release key,
+by its id), or a new one the script generates: RSA 4096, sign only, no expiry, made in a private
+GPG home for the run so nothing reaches your keyring unless you keep a copy. A new key's public
+half is sent to `keyserver.ubuntu.com` and `keys.openpgp.org`, the keyservers Central checks
+signatures against, and `keys.openpgp.org` emails the key's address to confirm it. Either way
+the public half is written to [`central-signing-key.asc`](central-signing-key.asc), to commit.
+Offered a copy of a new private key, keep it (with the passphrase) in a password manager: lost,
+it is replaced by a new key, and releases after that are signed with the new one.
+
 They are the same account and key as OfficeFloor's own releases, which keep them as that
 repository's secrets. A release workflow maps them to `ORG_GRADLE_PROJECT_mavenCentralUsername`,
 `mavenCentralPassword`, `signingInMemoryKey` and `signingInMemoryKeyPassword`. Each step asks

@@ -8,8 +8,10 @@
 #
 #   1. Central: sets SONATYPE_USERNAME and SONATYPE_PASSWORD, a Central Portal user token you
 #      generate (https://central.sonatype.com/account, "Generate User Token").
-#   2. Signing: sets GPG_PRIVATE_KEY, the signing key exported armoured from your GPG keyring by
-#      its id, and GPG_PASSPHRASE.
+#   2. Signing: sets GPG_PRIVATE_KEY and GPG_PASSPHRASE, either an existing key exported from
+#      your GPG keyring by its id, or a new one generated here (RSA 4096, in a private GPG home
+#      for the run) and registered with the public keyservers Central checks. Its public half is
+#      written to central-signing-key.asc, to commit.
 #   3. Access: makes the repositories that may read the secrets those listed in
 #      central-publishing-repositories.txt. (Steps 1 and 2 already give a secret they set that
 #      list; this is for the others, and for when the list changes.)
@@ -17,7 +19,8 @@
 # Run once to set up, and again after editing the list (answering no to 1 and 2). All steps
 # share one temporary GitHub token (admin:org) made for the run. Run it in your own terminal.
 #
-# DRY_RUN=1 shows what would be done, sending nothing.
+# DRY_RUN=1 shows what would be done, sending nothing (a generated key is a throwaway, neither
+# sent to the keyservers nor written here).
 set -euo pipefail
 
 ORG=officefloor
@@ -25,6 +28,7 @@ SECRETS=(SONATYPE_USERNAME SONATYPE_PASSWORD GPG_PRIVATE_KEY GPG_PASSPHRASE)
 
 here="$(cd "$(dirname "$0")" && pwd)"
 REPO_LIST="$here/central-publishing-repositories.txt"
+KEY_COPY="$here/central-signing-key.asc"   # public: committed, for anyone checking signatures
 
 die() { echo "error: $*" >&2; exit 1; }
 
@@ -130,11 +134,23 @@ setup_signing() {
 
 == 2. Signing ==
 Sets GPG_PRIVATE_KEY and GPG_PASSPHRASE: the key Central checks every artifact's signature
-against (its public half on a keyserver). The key is exported armoured from your keyring by its
-id (gpg --list-secret-keys --keyid-format long shows it); nothing is written to disk.
+against, by its public half on a public keyserver. Either an existing key from your keyring
+(OfficeFloor's release key, so everything under net.officefloor is signed alike), or a new one
+made here and registered with the keyservers. Its public half is written to
+$(basename "$KEY_COPY") here, to commit.
 EOF
     ask "Set the signing key?" || return 0
     command -v gpg >/dev/null || die "needs gpg"
+    local choice
+    read -rp "Use an existing key from your keyring, or generate a new one? [e/g] " choice
+    case "$choice" in
+        [gG]*) generate_signing_key ;;
+        [eE]*) existing_signing_key ;;
+        *) die "answer e or g" ;;
+    esac
+}
+
+existing_signing_key() {
     github_access
     local id pass key
     read -rp "Signing key id: " id
@@ -148,6 +164,93 @@ EOF
     read -rsp "Its passphrase: " pass; echo
     set_secret GPG_PRIVATE_KEY < <(printf '%s' "$key")  # not a pipe: set_secret records what it set
     set_secret GPG_PASSPHRASE < <(printf '%s' "$pass")  # not a pipe: set_secret records what it set
+    if [ -n "${DRY_RUN:-}" ]; then
+        echo "(dry run: $(basename "$KEY_COPY") left as it is)"
+        return 0
+    fi
+    gpg --armor --export "$id" > "$KEY_COPY"
+    if ask "Publish its public half to the keyservers too (do so if Central has never seen it)?"; then
+        publish_key "$id" ""
+    fi
+    echo "Now commit $(basename "$KEY_COPY") to this repository."
+}
+
+generate_signing_key() {
+    local name email pass confirm
+    read -rp "Name on the key [OfficeFloor]: " name
+    name="${name:-OfficeFloor}"
+    read -rp "Email on the key (keys.openpgp.org emails it to confirm): " email
+    [[ "$email" == *@*.* ]] || die "give the email address the key is for"
+    read -rsp "Choose a passphrase for the key: " pass; echo
+    read -rsp "Again: " confirm; echo
+    [ "$pass" = "$confirm" ] || die "the passphrases differ"
+    [ ${#pass} -ge 8 ] || die "use at least 8 characters"
+
+    # A private GPG home for this run only: nothing reaches your own keyring unless you keep it.
+    WORK="$(umask 077; mktemp -d)"
+    local home="$WORK/gnupg" fpr key
+    (umask 077; mkdir -p "$home")
+    gpg --homedir "$home" --batch --pinentry-mode loopback --passphrase-fd 0 \
+        --quick-generate-key "$name <$email>" rsa4096 sign never <<<"$pass" 2>/dev/null \
+        || die "gpg could not make the key"
+    fpr="$(gpg --homedir "$home" --quiet --with-colons --list-secret-keys 2>/dev/null | awk -F: '/^fpr/ {print $10; exit}')"
+    [ -n "$fpr" ] || die "the new key has no fingerprint"
+    echo "Made the key: $name <$email>, RSA 4096, sign only, no expiry"
+    echo "  fingerprint $fpr"
+    key="$(gpg --homedir "$home" --batch --pinentry-mode loopback --passphrase-fd 0 \
+        --armor --export-secret-keys "$fpr" <<<"$pass")" || die "gpg could not export the new key"
+
+    github_access
+    set_secret GPG_PRIVATE_KEY < <(printf '%s' "$key")  # not a pipe: set_secret records what it set
+    set_secret GPG_PASSPHRASE < <(printf '%s' "$pass")  # not a pipe: set_secret records what it set
+
+    if [ -n "${DRY_RUN:-}" ]; then
+        echo "(dry run: the key is not sent to the keyservers, and $(basename "$KEY_COPY") is left as it is)"
+    else
+        gpg --homedir "$home" --armor --export "$fpr" > "$KEY_COPY"
+        publish_key "$fpr" "$home"
+    fi
+    if ask "Keep a copy of the private key for a password manager (it is otherwise deleted)?"; then
+        local keep="$HOME/officefloor-central-signing"
+        (umask 077; mkdir -p "$keep")
+        printf '%s\n' "$key" > "$keep/private-key.asc"
+        gpg --homedir "$home" --armor --export "$fpr" > "$keep/public-key.asc"
+        echo "Copied to $keep: save both files and the passphrase, then delete it."
+        echo "(gpg --import $keep/private-key.asc puts it in a keyring, should it be needed.)"
+    else
+        echo "Deleting the private key: if it is ever needed again, a new key replaces it (README)."
+    fi
+    gpgconf --homedir "$home" --kill all 2>/dev/null || true
+    [ -n "${DRY_RUN:-}" ] || echo "Now commit $(basename "$KEY_COPY") to this repository."
+}
+
+# The public keyservers Central looks a signing key up on.
+KEYSERVERS=(hkps://keyserver.ubuntu.com hkps://keys.openpgp.org)
+
+publish_key() {   # publish_key FINGERPRINT-OR-ID [GNUPGHOME]
+    local id="$1" home=() server
+    [ -n "${2:-}" ] && home=(--homedir "$2")
+    for server in "${KEYSERVERS[@]}"; do
+        if gpg "${home[@]}" --keyserver "$server" --send-keys "$id" 2>/dev/null; then
+            echo "sent the public key to $server"
+        else
+            echo "WARNING: could not send the public key to $server: send it later with"
+            echo "  gpg --keyserver $server --send-keys $id"
+        fi
+    done
+    local fpr
+    fpr="$(gpg "${home[@]}" --with-colons --fingerprint "$id" | awk -F: '/^fpr/ {print $10; exit}')"
+    if curl --fail --silent --show-error -o /dev/null \
+        "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x$fpr" 2>/dev/null; then
+        echo "keyserver.ubuntu.com serves the key: Central can check signatures with it"
+    else
+        echo "keyserver.ubuntu.com does not serve the key yet (it can take a few minutes); check"
+        echo "  https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x$fpr before the first release"
+    fi
+    cat <<EOF
+keys.openpgp.org sends a confirmation email to the key's address: confirm it, so the key is
+found by its address too. Central finds it by its id either way.
+EOF
 }
 
 update_access() {
