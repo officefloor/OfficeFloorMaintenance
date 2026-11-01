@@ -5,5 +5,4 @@
 # To give a new plugin repository access: add it here, commit, and run
 # ./setup-jetbrains-publishing.sh, answering yes to updating the repositories with access.
 SinewSlim
-OfficeFloor-IntelliJ-Plugin
 OfficeFloorSlim
