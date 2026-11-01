@@ -3,6 +3,30 @@
 Scripts for setting up what the OfficeFloor organisation shares across its repositories.
 Nothing secret is kept here: the scripts put secrets into GitHub.
 
+## Publishing libraries to Maven Central
+
+```bash
+./setup-central-publishing.sh
+```
+
+Sets the organisation secrets that Gradle builds read to sign and upload libraries to Maven
+Central, for the repositories listed in
+[`central-publishing-repositories.txt`](central-publishing-repositories.txt) (SinewSlim):
+
+| Secret | What it is |
+|---|---|
+| `SONATYPE_USERNAME`, `SONATYPE_PASSWORD` | a Central Portal user token, for the account that owns the `net.officefloor` namespace |
+| `GPG_PRIVATE_KEY`, `GPG_PASSPHRASE` | the signing key, armoured, and its passphrase |
+
+They are the same account and key as OfficeFloor's own releases, which keep them as that
+repository's secrets. A release workflow maps them to `ORG_GRADLE_PROJECT_mavenCentralUsername`,
+`mavenCentralPassword`, `signingInMemoryKey` and `signingInMemoryKeyPassword`. Each step asks
+first, `DRY_RUN=1` shows what would be done, and one temporary `admin:org` GitHub token is made
+for the run.
+
+**Adding a repository later:** add its name to `central-publishing-repositories.txt`, commit,
+and run the script, answering no to the first two steps and yes to the repositories with access.
+
 ## Publishing IntelliJ plugins to the JetBrains Marketplace
 
 ```bash

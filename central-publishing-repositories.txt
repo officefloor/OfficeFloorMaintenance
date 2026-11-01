@@ -1,0 +1,7 @@
+# The OfficeFloor repositories that publish to Maven Central with Gradle: each may read the
+# organisation secrets SONATYPE_USERNAME, SONATYPE_PASSWORD, GPG_PRIVATE_KEY and GPG_PASSPHRASE.
+# One repository name per line. (OfficeFloor itself keeps its own repository secrets.)
+#
+# To give a new repository access: add it here, commit, and run ./setup-central-publishing.sh,
+# answering yes to updating the repositories with access.
+SinewSlim
